@@ -59,7 +59,6 @@ export interface BonusCategoriesResponse {
 }
 
 export interface ExtractOptions {
-  week?: 'deze-week';
   concurrency?: number;
 }
 

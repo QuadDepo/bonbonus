@@ -88,10 +88,14 @@ const main = async () => {
     const absolutePath = resolve(process.cwd(), values.output);
     await mkdir(dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, body + '\n', 'utf8');
-    return;
+  } else {
+    process.stdout.write(body + '\n');
   }
 
-  process.stdout.write(body + '\n');
+  if (result.promotionsTotal > 0 && result.promotionsQueried === 0) {
+    console.error(`All ${result.promotionsTotal} promotions failed to fetch.`);
+    process.exit(1);
+  }
 };
 
 main().catch((error) => {

@@ -48,8 +48,10 @@ const runWithConcurrency = async <T>(
 };
 
 export const extractBonusItems = async (options: ExtractOptions = {}): Promise<ExtractResult> => {
-  const week = options.week ?? DEFAULT_WEEK;
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new TypeError(`extractBonusItems: concurrency must be a positive integer, got ${options.concurrency}`);
+  }
 
   const { weekNumber, periodStart, periodEnd } = getCurrentBonusWeek();
   log('Bonus week', weekNumber, periodStart, '→', periodEnd);
@@ -88,7 +90,7 @@ export const extractBonusItems = async (options: ExtractOptions = {}): Promise<E
 
   return {
     items,
-    week,
+    week: DEFAULT_WEEK,
     source: 'graphql',
     scrapedAt: new Date().toISOString(),
     promotionsQueried: succeeded,
