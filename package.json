@@ -1,0 +1,59 @@
+{
+  "name": "bonbonus",
+  "version": "0.1.0",
+  "description": "Crawl Albert Heijn bonus pages and extract deze week offer data",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ryan George <hi@ryangeor.ge>",
+  "homepage": "https://github.com/QuadDepo/bonbonus#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QuadDepo/bonbonus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/QuadDepo/bonbonus/issues"
+  },
+  "keywords": [
+    "albert-heijn",
+    "ah",
+    "bonus",
+    "deze-week",
+    "groceries",
+    "netherlands",
+    "scraper",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "bonbonus": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "extract": "tsx src/cli.ts extract"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  }
+}
