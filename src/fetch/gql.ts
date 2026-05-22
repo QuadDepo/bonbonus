@@ -5,7 +5,7 @@
  * the responses into domain types.
  */
 
-import { AH_CLIENT_VERSION, AH_GQL_URL, AH_ORIGIN, DEFAULT_TIMEOUT_MS, DEFAULT_USER_AGENT } from '../utils/constants.ts';
+import { AH_GQL_URL, AH_ORIGIN, DEFAULT_TIMEOUT_MS, DEFAULT_USER_AGENT, getAhClientVersion } from '../utils/constants.ts';
 import { AhNetworkError, AhSourceChangedError } from '../utils/errors.ts';
 import type { BonusCategoriesResponse, BonusCategory, BonusCategoryPromotion, BonusItem, RawProduct } from '../utils/types.ts';
 import { rawProductToBonusItem } from '../extract/product.ts';
@@ -81,7 +81,7 @@ const toRawProduct = (product: GraphqlProduct): RawProduct => ({
 const buildGqlHeaders = (referer = `${AH_ORIGIN}/bonus`) => ({
   'content-type': 'application/json',
   'client-name': 'ah-bonus',
-  'client-version': AH_CLIENT_VERSION,
+  'client-version': getAhClientVersion(),
   origin: AH_ORIGIN,
   referer,
   'user-agent': DEFAULT_USER_AGENT,
@@ -90,10 +90,25 @@ const buildGqlHeaders = (referer = `${AH_ORIGIN}/bonus`) => ({
 
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 500;
+const MAX_BACKOFF_MS = 30_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const isRetryableStatus = (status: number) => status === 429 || status >= 500;
+
+/** Honor Retry-After (seconds or HTTP-date), clamped to MAX_BACKOFF_MS. */
+const retryAfterMs = (header: string | null): number | undefined => {
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_BACKOFF_MS);
+  }
+  const dateMs = Date.parse(header);
+  if (Number.isFinite(dateMs)) {
+    return Math.max(0, Math.min(dateMs - Date.now(), MAX_BACKOFF_MS));
+  }
+  return undefined;
+};
 
 const gqlFetch = async <T>(body: string, headers: Record<string, string>, timeoutMs: number): Promise<T> => {
   let lastError: unknown;
@@ -109,12 +124,13 @@ const gqlFetch = async <T>(body: string, headers: Record<string, string>, timeou
 
       if (!response.ok) {
         if (isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
-          await sleep(BASE_BACKOFF_MS * 2 ** attempt);
+          const wait = retryAfterMs(response.headers.get('retry-after')) ?? BASE_BACKOFF_MS * 2 ** attempt;
+          await sleep(wait);
           continue;
         }
         const hint =
           response.status === 400 || response.status === 403
-            ? ` — AH may have rotated their client; try setting BONBONUS_CLIENT_VERSION (current: ${AH_CLIENT_VERSION})`
+            ? ` — AH may have rotated their client; try setting BONBONUS_CLIENT_VERSION (current: ${getAhClientVersion()})`
             : '';
         throw new AhNetworkError(`GQL request failed: ${response.status}${hint}`);
       }
@@ -159,10 +175,13 @@ export const extractProductsFromBonusPromotionResponse = (
   response: BonusPromotionResponse,
   context: { promotionId: string; promotionTitle: string; periodStart: string; periodEnd: string },
 ): BonusItem[] => {
-  const promotion = response.data?.bonusPromotions?.[0];
-  if (!promotion) {
-    throw new AhSourceChangedError(`No promotion payload found for promotion ${context.promotionId}`);
+  // `data.bonusPromotions` missing => schema change; empty array => promotion
+  // legitimately has no products right now (transient/empty), not a schema break.
+  if (!response.data || !('bonusPromotions' in response.data)) {
+    throw new AhSourceChangedError(`No bonusPromotions field in response for promotion ${context.promotionId}`);
   }
+  const promotion = response.data.bonusPromotions?.[0];
+  if (!promotion) return [];
 
   const validFrom = toIsoDate(promotion.periodStart) ?? toIsoDate(context.periodStart);
   const validUntil = toIsoDate(promotion.periodEnd) ?? toIsoDate(context.periodEnd);
