@@ -1,0 +1,129 @@
+{
+  "data": {
+    "bonusPromotions": [
+      {
+        "id": "767218",
+        "title": "Alle A-merk peulvruchten conserven",
+        "periodStart": "2026-03-02",
+        "periodEnd": "2026-03-08",
+        "products": [
+          {
+            "id": 202196,
+            "title": "Hak Witte bonen in tomatensaus",
+            "brand": "Hak",
+            "category": "Soepen, sauzen, kruiden, olie/Witte bonen",
+            "webPath": "/producten/product/wi202196/hak-witte-bonen-in-tomatensaus",
+            "salesUnitSize": "360 g",
+            "summary": "Hak witte bonen in tomatensaus volgens authentiek Hak receptuur.",
+            "highlights": [
+              "Lekker voor jong en oud"
+            ],
+            "imagePack": [
+              {
+                "angle": "ANGLE_2D1",
+                "small": {
+                  "url": "https://static.ah.nl/dam/product/AHI_white-bonen?rendition=200x200_JPG_Q85",
+                  "__typename": "ProductImageRendition"
+                },
+                "__typename": "ProductImage"
+              }
+            ],
+            "availability": {
+              "availabilityLabel": null,
+              "__typename": "ProductAvailability"
+            },
+            "icons": [
+              "NUTRISCORE_A",
+              "AVAILABLE_IN_STORE"
+            ],
+            "priceV2": {
+              "now": {
+                "amount": 2.59,
+                "__typename": "Money"
+              },
+              "was": {
+                "amount": 2.59,
+                "__typename": "Money"
+              },
+              "unitInfo": {
+                "price": {
+                  "amount": 7.19,
+                  "__typename": "Money"
+                },
+                "description": "KG",
+                "__typename": "ProductUnitInfo"
+              },
+              "discount": {
+                "segmentId": 767218,
+                "description": "1 + 1 gratis",
+                "theme": "BONUS",
+                "smartLabel": "",
+                "__typename": "ProductPriceDiscountV2"
+              },
+              "__typename": "ProductPriceV2"
+            },
+            "__typename": "Product"
+          },
+          {
+            "id": 195104,
+            "title": "Hak Doperwtjes",
+            "brand": "Hak",
+            "category": "Groente, aardappelen/Doperwten",
+            "webPath": "/producten/product/wi195104/hak-doperwtjes",
+            "salesUnitSize": "350 g",
+            "summary": "De rassenselectie van Hak doperwtjes zijn geselecteerd op zoetheid en malsheid.",
+            "highlights": [
+              "Van Hollandse bodem"
+            ],
+            "imagePack": [
+              {
+                "angle": "ANGLE_2D1",
+                "small": {
+                  "url": "https://static.ah.nl/dam/product/AHI_doperwtjes?rendition=200x200_JPG_Q85",
+                  "__typename": "ProductImageRendition"
+                },
+                "__typename": "ProductImage"
+              }
+            ],
+            "availability": {
+              "availabilityLabel": null,
+              "__typename": "ProductAvailability"
+            },
+            "icons": [
+              "NUTRISCORE_A",
+              "AVAILABLE_IN_STORE"
+            ],
+            "priceV2": {
+              "now": {
+                "amount": 2.49,
+                "__typename": "Money"
+              },
+              "was": {
+                "amount": 2.49,
+                "__typename": "Money"
+              },
+              "unitInfo": {
+                "price": {
+                  "amount": 10.83,
+                  "__typename": "Money"
+                },
+                "description": "KG",
+                "__typename": "ProductUnitInfo"
+              },
+              "discount": {
+                "segmentId": 767218,
+                "description": "1 + 1 gratis",
+                "theme": "BONUS",
+                "smartLabel": "",
+                "__typename": "ProductPriceDiscountV2"
+              },
+              "__typename": "ProductPriceV2"
+            },
+            "__typename": "Product"
+          }
+        ],
+        "__typename": "Promotion"
+      }
+    ]
+  }
+}

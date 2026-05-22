@@ -1,0 +1,46 @@
+{
+  "data": {
+    "bonusCategories": [
+      {
+        "id": "groente",
+        "title": "Groente, aardappelen",
+        "type": "CATEGORY",
+        "promotions": [
+          {
+            "id": "767205",
+            "title": "Alle AH groenten",
+            "productCount": 42,
+            "periodStart": "2026-03-02",
+            "periodEnd": "2026-03-08",
+            "__typename": "Promotion"
+          },
+          {
+            "id": "767210",
+            "title": "Alle tomaten",
+            "productCount": 18,
+            "periodStart": "2026-03-02",
+            "periodEnd": "2026-03-08",
+            "__typename": "Promotion"
+          }
+        ],
+        "__typename": "BonusCategory"
+      },
+      {
+        "id": "zuivel",
+        "title": "Zuivel, eieren",
+        "type": "CATEGORY",
+        "promotions": [
+          {
+            "id": "767300",
+            "title": "Alle AH zuivel",
+            "productCount": 25,
+            "periodStart": "2026-03-02",
+            "periodEnd": "2026-03-08",
+            "__typename": "Promotion"
+          }
+        ],
+        "__typename": "BonusCategory"
+      }
+    ]
+  }
+}
