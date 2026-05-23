@@ -70,3 +70,91 @@ export interface ExtractResult {
   promotionsQueried: number;
   promotionsTotal: number;
 }
+
+export interface ProductSummary {
+  id: string;
+  gtin: string | null;
+  title: string;
+  subtitle?: string;
+  priceText?: string;
+  bonusMechanic?: string;
+  isBonus: boolean;
+  imageUrl?: string;
+  tags: string[];
+  productSize?: string;
+  category?: string;
+  url: string;
+}
+
+export interface ProductSearchOptions {
+  query: string;
+  size?: number;
+  page?: number;
+  taxonomyId?: number;
+  bonusOnly?: boolean;
+}
+
+export interface ProductSearchResultPublic {
+  results: ProductSummary[];
+  query: string;
+  size: number;
+  page: number;
+  scrapedAt: string;
+}
+
+export interface ProductLookupResult {
+  products: ProductSummary[];
+  failedIds: number[];
+  scrapedAt: string;
+}
+
+export interface ProductsGraphqlResponse {
+  data?: {
+    products?: unknown[] | null;
+  };
+}
+
+export interface ProductSearchGraphqlResponse {
+  data?: {
+    productSearch?: {
+      products?: unknown[] | null;
+    } | null;
+  };
+}
+
+export interface RecipeSummary {
+  id: number;
+  title: string;
+  slug: string;
+  url: string;
+  rating?: number;
+  courses: string[];
+  diet: string[];
+}
+
+export interface RecipeSearchOptions {
+  query: string;
+  size?: number;
+}
+
+export interface RecipeSearchResultPublic {
+  results: RecipeSummary[];
+  query: string;
+  size: number;
+  scrapedAt: string;
+}
+
+export interface RecipeSearchGraphqlResponse {
+  data?: {
+    recipeSearch?: {
+      result?: Array<{
+        id?: number | null;
+        title?: string | null;
+        slug?: string | null;
+        rating?: { average?: number | null } | null;
+        courses?: string[] | null;
+        diet?: string[] | null;
+      }> | null;
+    } | null;
+  };
+}

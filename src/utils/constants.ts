@@ -1,5 +1,6 @@
 export const AH_ORIGIN = 'https://www.ah.nl';
 export const AH_GQL_URL = 'https://www.ah.nl/gql';
+export const AH_ALLERHANDE_RECIPE_PATH = '/allerhande/recept';
 export const DEFAULT_WEEK = 'deze-week';
 export const DEFAULT_CONCURRENCY = 10;
 export const DEFAULT_TIMEOUT_MS = 15000;

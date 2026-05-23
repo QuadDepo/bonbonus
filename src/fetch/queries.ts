@@ -216,3 +216,75 @@ fragment priceV2 on ProductPriceV2 {
   }
   __typename
 }`;
+
+// Search-context fragment for Product. Distinct from the bonus-promotion
+// fragment above because:
+// 1. No `priceV2(periodStart, periodEnd)` args — search results use the
+//    current effective price, not a period-locked one.
+// 2. Trimmed selection set — we do not need taxonomies, variants, or
+//    bundle metadata for search/lookup commands.
+const SEARCH_PRODUCT_FRAGMENT = `fragment searchProduct on Product {
+  id
+  hqId
+  title
+  brand
+  category
+  webPath
+  salesUnitSize
+  highlights
+  icons
+  imagePack(angles: [ANGLE_2D1, HERO]) {
+    angle
+    small { url }
+  }
+  availability {
+    availabilityLabel
+    isOrderable
+  }
+  tradeItem { gtin }
+  priceV2 {
+    now { amount }
+    was { amount }
+    unitInfo {
+      description
+      price { amount }
+    }
+    discount {
+      description
+      smartLabel
+      theme
+      promotionType
+      subtitle
+    }
+  }
+}`;
+
+export const PRODUCT_SEARCH_QUERY = `query productSearch($input: ProductSearchInput!) {
+  productSearch(input: $input) {
+    products { ...searchProduct }
+  }
+}
+${SEARCH_PRODUCT_FRAGMENT}`;
+
+export const PRODUCTS_QUERY = `query products($productsInput: [ProductsInput!]!) {
+  products(productsInput: $productsInput) {
+    ...searchProduct
+  }
+}
+${SEARCH_PRODUCT_FRAGMENT}`;
+
+// RecipeSummary on the public web endpoint exposes a slim set of fields.
+// Steps, nutrition, totalTime, and the ingredient list live on the mobile
+// `api.ah.nl/graphql` schema (Phase 3 if/when we add that transport).
+export const RECIPE_SEARCH_QUERY = `query recipeSearch($query: RecipeSearchParams!) {
+  recipeSearch(query: $query) {
+    result {
+      id
+      title
+      slug
+      rating { average }
+      courses
+      diet
+    }
+  }
+}`;

@@ -1,4 +1,4 @@
-import type { BonusItem } from '../utils/types.ts';
+import type { BonusItem, ProductSummary } from '../utils/types.ts';
 
 const TAG_COLUMNS = [
   ['tag_bonus', 'bonus'],
@@ -46,5 +46,40 @@ export const toCsv = (items: BonusItem[]) => {
   ].join(',');
 
   const rows = items.map(toRow);
+  return [header, ...rows].join('\r\n');
+};
+
+const PRODUCT_SUMMARY_COLUMNS = [
+  'id',
+  'gtin',
+  'title',
+  'subtitle',
+  'priceText',
+  'bonusMechanic',
+  'isBonus',
+  'imageUrl',
+  'productSize',
+  'category',
+  'url',
+] as const;
+
+const productSummaryRow = (item: ProductSummary) => {
+  const tags = new Set(item.tags);
+  const coreValues = PRODUCT_SUMMARY_COLUMNS.map((column) => {
+    const value = item[column];
+    if (typeof value === 'boolean') return String(value);
+    return toCell(value as string | null | undefined);
+  });
+  const tagValues = TAG_COLUMNS.map(([, tag]) => String(tags.has(tag)));
+  return [...coreValues, ...tagValues].join(',');
+};
+
+export const productSummariesToCsv = (items: ProductSummary[]) => {
+  const header = [
+    ...PRODUCT_SUMMARY_COLUMNS,
+    ...TAG_COLUMNS.map(([column]) => column),
+  ].join(',');
+
+  const rows = items.map(productSummaryRow);
   return [header, ...rows].join('\r\n');
 };

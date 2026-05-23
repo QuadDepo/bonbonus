@@ -8,30 +8,27 @@
 import { Agent } from 'undici';
 import { AH_GQL_URL, AH_ORIGIN, DEFAULT_TIMEOUT_MS, DEFAULT_USER_AGENT, getAhClientVersion } from '../utils/constants.ts';
 import { AhNetworkError, AhSourceChangedError } from '../utils/errors.ts';
-import type { BonusCategoriesResponse, BonusCategory, BonusCategoryPromotion, BonusItem, RawProduct } from '../utils/types.ts';
-import { rawProductToBonusItem } from '../extract/product.ts';
-import { BONUS_CATEGORIES_QUERY, BONUS_PROMOTION_PRODUCTS_QUERY } from './queries.ts';
+import type {
+  BonusCategoriesResponse,
+  BonusCategory,
+  BonusItem,
+  ProductSearchGraphqlResponse,
+  ProductSummary,
+  ProductsGraphqlResponse,
+  RecipeSearchGraphqlResponse,
+  RecipeSummary,
+} from '../utils/types.ts';
+import { AH_ALLERHANDE_RECIPE_PATH } from '../utils/constants.ts';
+import { rawProductToBonusItem, rawProductToProductSummary, toRawProduct } from '../extract/product.ts';
+import {
+  BONUS_CATEGORIES_QUERY,
+  BONUS_PROMOTION_PRODUCTS_QUERY,
+  PRODUCTS_QUERY,
+  PRODUCT_SEARCH_QUERY,
+  RECIPE_SEARCH_QUERY,
+} from './queries.ts';
 
-interface GraphqlProduct {
-  id?: number | string;
-  title?: string | null;
-  brand?: string | null;
-  category?: string | null;
-  salesUnitSize?: string | null;
-  availability?: { availabilityLabel?: string | null } | null;
-  webPath?: string | null;
-  summary?: string | null;
-  highlights?: string[] | null;
-  icons?: string[] | null;
-  imagePack?: Array<{ small?: { url?: string | null } | null; large?: { url?: string | null } | null }> | null;
-  tradeItem?: { gtin?: string | null } | null;
-  priceV2?: {
-    now?: { amount?: number | null } | null;
-    was?: { amount?: number | null } | null;
-    unitInfo?: { price?: { amount?: number | null } | null; description?: string | null } | null;
-    discount?: { description?: string | null; smartLabel?: string | null; theme?: string | null } | null;
-  } | null;
-}
+import type { GraphqlProduct } from '../extract/product.ts';
 
 interface GraphqlPromotion {
   title?: string | null;
@@ -56,28 +53,6 @@ const toIsoDate = (value?: string | null) => {
   if (value.includes('T')) return value;
   return new Date(`${value}T00:00:00.000Z`).toISOString();
 };
-
-const toRawProduct = (product: GraphqlProduct): RawProduct => ({
-  id: String(product.id ?? ''),
-  gtin: product.tradeItem?.gtin ?? null,
-  title: product.title ?? undefined,
-  brand: product.brand ?? undefined,
-  category: product.category ?? undefined,
-  salesUnitSize: product.salesUnitSize ?? undefined,
-  availabilityLabel: product.availability?.availabilityLabel ?? undefined,
-  webPath: product.webPath ?? undefined,
-  summary: product.summary ?? undefined,
-  highlights: product.highlights ?? null,
-  icons: product.icons ?? null,
-  imageUrl: product.imagePack?.[0]?.small?.url ?? product.imagePack?.[0]?.large?.url ?? null,
-  priceNow: product.priceV2?.now?.amount ?? null,
-  priceWas: product.priceV2?.was?.amount ?? null,
-  unitPrice: product.priceV2?.unitInfo?.price?.amount ?? null,
-  unitDescription: product.priceV2?.unitInfo?.description ?? null,
-  discountDescription: product.priceV2?.discount?.description ?? null,
-  discountLabel: product.priceV2?.discount?.smartLabel ?? null,
-  discountTheme: product.priceV2?.discount?.theme ?? null,
-});
 
 const buildGqlHeaders = (referer = `${AH_ORIGIN}/bonus`) => ({
   'content-type': 'application/json',
@@ -263,5 +238,201 @@ export const fetchPromotionProducts = async (
     if (error instanceof AhNetworkError || error instanceof AhSourceChangedError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new AhNetworkError(`Failed to fetch promotion ${promotion.id}: ${message}`);
+  }
+};
+
+interface GqlEnvelope {
+  data?: unknown;
+  errors?: Array<{ message?: string }>;
+}
+
+/**
+ * Distinguish AH's three failure modes:
+ *  1. Top-level GraphQL `errors` with `data: null` — usually "id not found" or
+ *     subgraph failure. Surface AH's message so callers can act on it.
+ *  2. `data` present but the expected field key is missing — schema drift.
+ *  3. Happy path — return data[field].
+ */
+const extractGqlField = <T>(response: GqlEnvelope, field: string, context: string): T => {
+  if (response.errors && response.errors.length > 0) {
+    const messages = response.errors.map((e) => e.message ?? 'unknown error').join('; ');
+    throw new AhNetworkError(`${context}: AH returned errors: ${messages}`);
+  }
+  if (!response.data || typeof response.data !== 'object') {
+    throw new AhNetworkError(`${context}: AH returned no data`);
+  }
+  const data = response.data as Record<string, unknown>;
+  if (!(field in data)) {
+    throw new AhSourceChangedError(`No ${field} field in response for ${context}`);
+  }
+  return data[field] as T;
+};
+
+export const mapProductSearchResponse = (response: ProductSearchGraphqlResponse): ProductSummary[] => {
+  const productSearch = extractGqlField<{ products?: unknown[] | null } | null>(
+    response as GqlEnvelope,
+    'productSearch',
+    'productSearch',
+  );
+  const products = productSearch?.products ?? [];
+  return products
+    .map((p) => toRawProduct(p as GraphqlProduct))
+    .filter((p) => Boolean(p.id && p.title && p.webPath))
+    .map(rawProductToProductSummary);
+};
+
+interface ProductSearchVariables {
+  query: string;
+  size: number;
+  page: number;
+  taxonomyId?: number;
+}
+
+export const fetchProductSearch = async (
+  variables: ProductSearchVariables,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<ProductSummary[]> => {
+  const headers = buildGqlHeaders(`${AH_ORIGIN}/zoeken?query=${encodeURIComponent(variables.query)}`);
+  const input: Record<string, unknown> = {
+    query: variables.query,
+    size: variables.size,
+    page: variables.page,
+  };
+  if (variables.taxonomyId !== undefined) input.taxonomyId = variables.taxonomyId;
+
+  const body = JSON.stringify({
+    operationName: 'productSearch',
+    variables: { input },
+    query: PRODUCT_SEARCH_QUERY,
+  });
+
+  try {
+    const result = await gqlFetch<ProductSearchGraphqlResponse>(body, headers, timeoutMs);
+    return mapProductSearchResponse(result);
+  } catch (error) {
+    if (error instanceof AhNetworkError || error instanceof AhSourceChangedError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AhNetworkError(`Failed to search products: ${message}`);
+  }
+};
+
+export const mapProductsResponse = (response: ProductsGraphqlResponse): ProductSummary[] => {
+  const products = extractGqlField<unknown[] | null>(response as GqlEnvelope, 'products', 'products');
+  return (products ?? [])
+    .map((p) => toRawProduct(p as GraphqlProduct))
+    .filter((p) => Boolean(p.id && p.title && p.webPath))
+    .map(rawProductToProductSummary);
+};
+
+// Recipe ids on ah.nl are 7-digit numbers (~1.2M+); product ids are 4-6 digit.
+// A common mistake is to pass a recipe id to `bonbonus product`, which AH then
+// rejects with a redacted subgraph error. Detect and hint.
+const looksLikeRecipeId = (id: number) => id >= 1_000_000;
+
+const recipeIdHint = (ids: number[]): string => {
+  const suspicious = ids.filter(looksLikeRecipeId);
+  if (suspicious.length === 0) return '';
+  const verb = suspicious.length === 1 ? 'looks' : 'look';
+  const noun = suspicious.length === 1 ? 'a recipe id' : 'recipe ids';
+  return ` — ${suspicious.join(', ')} ${verb} like ${noun}; try \`bonbonus recipes\` or pass the integer after \`wi\` in the product URL`;
+};
+
+const fetchProductsBatch = async (
+  ids: number[],
+  timeoutMs: number,
+): Promise<ProductSummary[]> => {
+  const headers = buildGqlHeaders();
+  const body = JSON.stringify({
+    operationName: 'products',
+    variables: { productsInput: ids.map((id) => ({ id })) },
+    query: PRODUCTS_QUERY,
+  });
+  const result = await gqlFetch<ProductsGraphqlResponse>(body, headers, timeoutMs);
+  return mapProductsResponse(result);
+};
+
+export interface FetchProductsResult {
+  products: ProductSummary[];
+  failedIds: number[];
+}
+
+// AH's batch lookup is all-or-nothing: one invalid id => `data: null` for the
+// whole batch. To get partial-success semantics (matching extract), on a batch
+// failure with >1 id we retry per-id in parallel and collect what succeeds.
+export const fetchProductsByIds = async (
+  ids: number[],
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<FetchProductsResult> => {
+  try {
+    const products = await fetchProductsBatch(ids, timeoutMs);
+    return { products, failedIds: [] };
+  } catch (error) {
+    if (error instanceof AhSourceChangedError) throw error;
+    if (ids.length === 1) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new AhNetworkError(`${message}${recipeIdHint(ids)}`);
+    }
+    if (!(error instanceof AhNetworkError)) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new AhNetworkError(`Failed to fetch products: ${message}`);
+    }
+    // Fallback: retry per-id to identify which ids resolve.
+    const settled = await Promise.allSettled(ids.map((id) => fetchProductsBatch([id], timeoutMs)));
+    const products: ProductSummary[] = [];
+    const failedIds: number[] = [];
+    settled.forEach((r, i) => {
+      if (r.status === 'fulfilled') products.push(...r.value);
+      else failedIds.push(ids[i]);
+    });
+    return { products, failedIds };
+  }
+};
+
+export const mapRecipeSearchResponse = (response: RecipeSearchGraphqlResponse): RecipeSummary[] => {
+  const recipeSearch = extractGqlField<{ result?: unknown[] | null } | null>(
+    response as GqlEnvelope,
+    'recipeSearch',
+    'recipeSearch',
+  );
+  const result = (recipeSearch?.result ?? []) as Array<{
+    id?: number | null;
+    title?: string | null;
+    slug?: string | null;
+    rating?: { average?: number | null } | null;
+    courses?: string[] | null;
+    diet?: string[] | null;
+  }>;
+  return result
+    .filter((r) => r.id != null && r.title && r.slug)
+    .map((r) => ({
+      id: r.id as number,
+      title: r.title as string,
+      slug: r.slug as string,
+      url: `${AH_ORIGIN}${AH_ALLERHANDE_RECIPE_PATH}/R-R${r.id}/${r.slug}`,
+      rating: r.rating?.average ?? undefined,
+      courses: r.courses ?? [],
+      diet: r.diet ?? [],
+    }));
+};
+
+export const fetchRecipeSearch = async (
+  query: string,
+  size: number,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<RecipeSummary[]> => {
+  const headers = buildGqlHeaders(`${AH_ORIGIN}/allerhande/recepten-zoeken?q=${encodeURIComponent(query)}`);
+  const body = JSON.stringify({
+    operationName: 'recipeSearch',
+    variables: { query: { searchText: query, size } },
+    query: RECIPE_SEARCH_QUERY,
+  });
+
+  try {
+    const result = await gqlFetch<RecipeSearchGraphqlResponse>(body, headers, timeoutMs);
+    return mapRecipeSearchResponse(result);
+  } catch (error) {
+    if (error instanceof AhNetworkError || error instanceof AhSourceChangedError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new AhNetworkError(`Failed to search recipes: ${message}`);
   }
 };

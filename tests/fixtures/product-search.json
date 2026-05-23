@@ -1,0 +1,56 @@
+{
+  "data": {
+    "productSearch": {
+      "products": [
+        {
+          "id": 597485,
+          "hqId": 12345,
+          "title": "AH Lasagne ei 2-pack",
+          "brand": "AH",
+          "category": "Pasta, rijst en wereldkeuken/Pasta/Lasagnebladen",
+          "webPath": "/producten/product/wi597485/ah-lasagne-ei-2-pack",
+          "salesUnitSize": "2 stuks",
+          "highlights": [],
+          "icons": ["available_in_store"],
+          "imagePack": [
+            { "small": { "url": "https://static.ah.nl/img/597485.jpg" } }
+          ],
+          "availability": { "availabilityLabel": "Beschikbaar", "isOrderable": true },
+          "tradeItem": { "gtin": "08712345678901" },
+          "priceV2": {
+            "now": { "amount": 3.02 },
+            "was": { "amount": 3.18 },
+            "unitInfo": { "description": "per stuk", "price": { "amount": 1.51 } },
+            "discount": {
+              "description": "5% volume voordeel",
+              "smartLabel": "bonus",
+              "theme": "BONUS",
+              "promotionType": "PERCENT_DISCOUNT",
+              "subtitle": null
+            }
+          }
+        },
+        {
+          "id": 12000,
+          "hqId": 12000,
+          "title": "Plain Spaghetti",
+          "brand": "AH",
+          "category": "Pasta, rijst en wereldkeuken/Pasta/Spaghetti",
+          "webPath": "/producten/product/wi12000/plain-spaghetti",
+          "salesUnitSize": "500 g",
+          "highlights": [],
+          "icons": [],
+          "imagePack": [],
+          "availability": { "availabilityLabel": "Beschikbaar", "isOrderable": true },
+          "tradeItem": { "gtin": null },
+          "priceV2": {
+            "now": { "amount": 1.29 },
+            "was": null,
+            "unitInfo": { "description": "per kg", "price": { "amount": 2.58 } },
+            "discount": null
+          }
+        }
+      ]
+    }
+  }
+}

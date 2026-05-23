@@ -1,8 +1,25 @@
-import { fetchBonusCategories, fetchPromotionProducts } from './fetch/gql.ts';
+import {
+  fetchBonusCategories,
+  fetchProductSearch,
+  fetchProductsByIds,
+  fetchPromotionProducts,
+  fetchRecipeSearch,
+} from './fetch/gql.ts';
 import { getCurrentBonusWeek } from './utils/week.ts';
 import { DEFAULT_CONCURRENCY, DEFAULT_WEEK } from './utils/constants.ts';
 import { createLogger } from './utils/log.ts';
-import type { BonusCategoryPromotion, BonusItem, ExtractOptions, ExtractResult } from './utils/types.ts';
+import type {
+  BonusCategoryPromotion,
+  BonusItem,
+  ExtractOptions,
+  ExtractResult,
+  ProductLookupResult,
+  ProductSearchOptions,
+  ProductSearchResultPublic,
+  ProductSummary,
+  RecipeSearchOptions,
+  RecipeSearchResultPublic,
+} from './utils/types.ts';
 
 const log = createLogger('index');
 
@@ -98,6 +115,94 @@ export const extractBonusItems = async (options: ExtractOptions = {}): Promise<E
   };
 };
 
-export { toCsv } from './format/csv.ts';
-export type { BonusItem, ExtractOptions, ExtractResult } from './utils/types.ts';
+const DEFAULT_PRODUCT_SEARCH_SIZE = 30;
+const DEFAULT_RECIPE_SEARCH_SIZE = 30;
+
+const validatePositiveInt = (label: string, value: number) => {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TypeError(`${label} must be a positive integer, got ${value}`);
+  }
+};
+
+const validateNonNegativeInt = (label: string, value: number) => {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new TypeError(`${label} must be a non-negative integer, got ${value}`);
+  }
+};
+
+export const search = async (options: ProductSearchOptions): Promise<ProductSearchResultPublic> => {
+  if (!options.query || typeof options.query !== 'string') {
+    throw new TypeError('search: query must be a non-empty string');
+  }
+  const size = options.size ?? DEFAULT_PRODUCT_SEARCH_SIZE;
+  const page = options.page ?? 0;
+  validatePositiveInt('size', size);
+  validateNonNegativeInt('page', page);
+  if (options.taxonomyId !== undefined) validatePositiveInt('taxonomyId', options.taxonomyId);
+
+  const results = await fetchProductSearch({
+    query: options.query,
+    size,
+    page,
+    taxonomyId: options.taxonomyId,
+  });
+
+  const filtered = options.bonusOnly ? results.filter((p) => p.isBonus) : results;
+
+  return {
+    results: filtered,
+    query: options.query,
+    size,
+    page,
+    scrapedAt: new Date().toISOString(),
+  };
+};
+
+export const lookupProducts = async (ids: number[]): Promise<ProductLookupResult> => {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new TypeError('lookupProducts: ids must be a non-empty array');
+  }
+  for (const id of ids) {
+    if (!Number.isInteger(id) || id < 1) {
+      throw new TypeError(`lookupProducts: each id must be a positive integer, got ${id}`);
+    }
+  }
+
+  const { products, failedIds } = await fetchProductsByIds(ids);
+  return {
+    products,
+    failedIds,
+    scrapedAt: new Date().toISOString(),
+  };
+};
+
+export const searchRecipes = async (options: RecipeSearchOptions): Promise<RecipeSearchResultPublic> => {
+  if (!options.query || typeof options.query !== 'string') {
+    throw new TypeError('searchRecipes: query must be a non-empty string');
+  }
+  const size = options.size ?? DEFAULT_RECIPE_SEARCH_SIZE;
+  validatePositiveInt('size', size);
+
+  const results = await fetchRecipeSearch(options.query, size);
+  return {
+    results,
+    query: options.query,
+    size,
+    scrapedAt: new Date().toISOString(),
+  };
+};
+
+export { toCsv, productSummariesToCsv } from './format/csv.ts';
+export type {
+  BonusItem,
+  ExtractOptions,
+  ExtractResult,
+  ProductLookupResult,
+  ProductSearchOptions,
+  ProductSearchResultPublic,
+  ProductSummary,
+  RecipeSearchOptions,
+  RecipeSearchResultPublic,
+} from './utils/types.ts';
+export type { RecipeSummary } from './utils/types.ts';
 export { AhScrapeError, AhNetworkError, AhSourceChangedError } from './utils/errors.ts';

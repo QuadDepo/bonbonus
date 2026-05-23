@@ -1,0 +1,32 @@
+{
+  "data": {
+    "recipeSearch": {
+      "result": [
+        {
+          "id": 1202268,
+          "title": "Lasagne met venkel en geitenkaas",
+          "slug": "lasagne-met-venkel-en-geitenkaas",
+          "rating": { "average": 4 },
+          "courses": ["hoofdgerecht"],
+          "diet": ["vegetarisch", "zonder vlees/vis"]
+        },
+        {
+          "id": 1202172,
+          "title": "Lasagne pockets",
+          "slug": "lasagne-pockets",
+          "rating": { "average": 5 },
+          "courses": ["lunch"],
+          "diet": []
+        },
+        {
+          "id": null,
+          "title": "skipped — missing id",
+          "slug": "skipped",
+          "rating": null,
+          "courses": [],
+          "diet": []
+        }
+      ]
+    }
+  }
+}
