@@ -80,12 +80,20 @@ const toRawProduct = (product: GraphqlProduct): RawProduct => ({
 
 const buildGqlHeaders = (referer = `${AH_ORIGIN}/bonus`) => ({
   'content-type': 'application/json',
-  'client-name': 'ah-bonus',
-  'client-version': getAhClientVersion(),
+  accept: 'application/graphql-response+json,application/json;q=0.9',
+  'accept-language': 'en-US,en;q=0.9,nl;q=0.8',
+  'x-client-name': 'ah-bonus',
+  'x-client-platform-type': 'Web',
+  'x-client-version': getAhClientVersion(),
   origin: AH_ORIGIN,
   referer,
   'user-agent': DEFAULT_USER_AGENT,
-  accept: 'application/json',
+  'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"macOS"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
 });
 
 const MAX_RETRIES = 3;
@@ -130,7 +138,7 @@ const gqlFetch = async <T>(body: string, headers: Record<string, string>, timeou
         }
         const hint =
           response.status === 400 || response.status === 403
-            ? ` — AH may have rotated their client; try setting BONBONUS_CLIENT_VERSION (current: ${getAhClientVersion()})`
+            ? ` — AH may have rotated their client (x-client-version); try setting BONBONUS_CLIENT_VERSION (current: ${getAhClientVersion()})`
             : '';
         throw new AhNetworkError(`GQL request failed: ${response.status}${hint}`);
       }

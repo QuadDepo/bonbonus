@@ -8,6 +8,24 @@ While in `0.x`, minor versions may include breaking API changes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-23
+
+### Changed
+
+- Aligned outgoing GraphQL headers with the current `ah.nl/bonus` web client:
+  `client-name` / `client-version` renamed to `x-client-name` / `x-client-version`,
+  added `x-client-platform-type: Web`, `sec-ch-ua*`, `sec-fetch-*`,
+  `accept-language`, and broadened `accept` to
+  `application/graphql-response+json,application/json;q=0.9`.
+- Default `x-client-version` bumped from `3.545.8` to `1.32.4` to match AH's
+  current versioning scheme.
+- Default `user-agent` bumped to Chrome 148.
+
+### Fixed
+
+- Resolves persistent `HTTP 403` from the AH GraphQL endpoint that began after
+  AH rotated their client identification scheme.
+
 ## [0.1.0] - 2026-05-22
 
 ### Added
@@ -20,5 +38,6 @@ While in `0.x`, minor versions may include breaking API changes.
 - Exponential backoff with retries on transient 429/5xx and network errors.
 - Per-promotion error isolation: a failing promotion no longer drops sibling results; `promotionsQueried` reports successes vs `promotionsTotal`.
 
-[Unreleased]: https://github.com/QuadDepo/bonbonus/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/QuadDepo/bonbonus/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/QuadDepo/bonbonus/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/QuadDepo/bonbonus/releases/tag/v0.1.0

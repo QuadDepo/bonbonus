@@ -28,11 +28,11 @@ A full extract returns ~3500 items across ~200 promotions and takes ~20–40 sec
 | Variable | Purpose | Default |
 |---|---|---|
 | `BONBONUS_CONCURRENCY` | Parallel promotion fetches. Positive integer. | `10` |
-| `BONBONUS_CLIENT_VERSION` | Override the AH `client-version` header. Set this if requests start failing with HTTP 400/403 (AH rotated their client). | `3.545.8` |
+| `BONBONUS_CLIENT_VERSION` | Override the AH `x-client-version` header. Set this if requests start failing with HTTP 400/403 (AH rotated their client). | `1.32.4` |
 
 ```sh
 BONBONUS_CONCURRENCY=5 bonbonus extract --output deals.json
-BONBONUS_CLIENT_VERSION=3.546.0 bonbonus extract
+BONBONUS_CLIENT_VERSION=1.33.0 bonbonus extract
 ```
 
 ## Exit codes
