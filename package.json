@@ -1,6 +1,6 @@
 {
   "name": "bonbonus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Crawl Albert Heijn bonus pages and extract deze week offer data",
   "type": "module",
   "license": "MIT",
@@ -48,6 +48,9 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"]
+  },
+  "dependencies": {
+    "undici": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

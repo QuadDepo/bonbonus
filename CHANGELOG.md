@@ -8,6 +8,26 @@ While in `0.x`, minor versions may include breaking API changes.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-23
+
+### Fixed
+
+- Linux (and other environments where Node's default OpenSSL cipher list is
+  visible to Akamai's bot wall): the TLS Client Hello now uses a restricted
+  Chrome-like cipher list via an `undici.Agent` dispatcher. Without this,
+  Node's outgoing JA3/JA4 fingerprint was rejected at the edge with HTTP 403
+  before any HTTP-layer logic ran. macOS happened to pass; Linux did not.
+  Confirmed via JA3/JA4 capture against `tls.peet.ws` (Node-default
+  fingerprint blocked, Chrome-cipher fingerprint accepted) and reproduced
+  end-to-end against `/gql` (403 → 200) on a Linux Mac mini sharing the same
+  public IP as a working macOS box.
+
+### Changed
+
+- Adds `undici@^7` as a runtime dependency to provide the `Agent` constructor.
+  Node already bundles undici internally; the package only ships the
+  user-facing constructor types.
+
 ## [0.2.0] - 2026-05-23
 
 ### Changed
@@ -38,6 +58,7 @@ While in `0.x`, minor versions may include breaking API changes.
 - Exponential backoff with retries on transient 429/5xx and network errors.
 - Per-promotion error isolation: a failing promotion no longer drops sibling results; `promotionsQueried` reports successes vs `promotionsTotal`.
 
-[Unreleased]: https://github.com/QuadDepo/bonbonus/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/QuadDepo/bonbonus/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/QuadDepo/bonbonus/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/QuadDepo/bonbonus/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/QuadDepo/bonbonus/releases/tag/v0.1.0

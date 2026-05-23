@@ -5,6 +5,7 @@
  * the responses into domain types.
  */
 
+import { Agent } from 'undici';
 import { AH_GQL_URL, AH_ORIGIN, DEFAULT_TIMEOUT_MS, DEFAULT_USER_AGENT, getAhClientVersion } from '../utils/constants.ts';
 import { AhNetworkError, AhSourceChangedError } from '../utils/errors.ts';
 import type { BonusCategoriesResponse, BonusCategory, BonusCategoryPromotion, BonusItem, RawProduct } from '../utils/types.ts';
@@ -100,6 +101,30 @@ const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 30_000;
 
+// Akamai's edge rejects Node's default OpenSSL cipher list as non-browser. A
+// Chrome-like cipher list yields a TLS Client Hello (JA3/JA4) the bot wall
+// accepts. Without this, requests from Linux Node return HTTP 403 before any
+// HTTP-layer inspection. Confirmed via tls.peet.ws fingerprint capture.
+const CHROME_CIPHERS = [
+  'TLS_AES_128_GCM_SHA256',
+  'TLS_AES_256_GCM_SHA384',
+  'TLS_CHACHA20_POLY1305_SHA256',
+  'ECDHE-ECDSA-AES128-GCM-SHA256',
+  'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384',
+  'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-AES128-SHA',
+  'ECDHE-RSA-AES256-SHA',
+  'AES128-GCM-SHA256',
+  'AES256-GCM-SHA384',
+  'AES128-SHA',
+  'AES256-SHA',
+].join(':');
+
+const tlsAgent = new Agent({ connect: { ciphers: CHROME_CIPHERS } });
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const isRetryableStatus = (status: number) => status === 429 || status >= 500;
@@ -128,6 +153,8 @@ const gqlFetch = async <T>(body: string, headers: Record<string, string>, timeou
         headers,
         body,
         signal: AbortSignal.timeout(timeoutMs),
+        // @ts-expect-error -- Node's global fetch accepts an undici dispatcher
+        dispatcher: tlsAgent,
       });
 
       if (!response.ok) {
