@@ -122,6 +122,64 @@ export interface ProductSearchGraphqlResponse {
   };
 }
 
+// --- Personal Bonus Box (authenticated) --------------------------------------
+
+/** AH-controlled status; the values we act on are 'ACTIVATED' and 'ACTIVATABLE'. */
+export type BonusBoxActivationStatus = string;
+
+export interface BonusBoxItem {
+  /** Promotion id shown to the user (also accepted by `bonusbox activate`). */
+  id: string;
+  /** Activation key passed as `externalId` to the activate mutation. */
+  hqId: string;
+  title: string;
+  category?: string;
+  activationStatus: BonusBoxActivationStatus;
+  priceNow?: number;
+  priceWas?: number;
+  periodStart?: string;
+  periodEnd?: string;
+}
+
+/** The Bonus Box as read from AH, before CLI-level metadata is attached. */
+export interface BonusBoxData {
+  items: BonusBoxItem[];
+  /** Max offers that can be activated this week (Premium 10 / free 5); null if unknown. */
+  maximumActivations: number | null;
+  /** How many items are already ACTIVATED. */
+  activatedCount: number;
+  validityPeriod?: { start: string; end: string };
+}
+
+export interface BonusBoxResult extends BonusBoxData {
+  weekNumber: number;
+  scrapedAt: string;
+}
+
+export interface BonusBoxActivation {
+  id: string;
+  hqId: string;
+  title: string;
+  /** AH's mutation status, e.g. "SUCCESS" / "FAILED". */
+  status: string;
+  /** AH's message, e.g. "OFFER_ACTIVATED" / "ACTIVATION_FAILED". */
+  message: string;
+  ok: boolean;
+}
+
+export interface BonusBoxActivationResult {
+  results: BonusBoxActivation[];
+  scrapedAt: string;
+}
+
+export interface MemberInfo {
+  id: number;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  bonusCard?: string;
+}
+
 export interface RecipeSummary {
   id: number;
   title: string;
