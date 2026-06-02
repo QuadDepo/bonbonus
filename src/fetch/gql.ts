@@ -5,9 +5,20 @@
  * the responses into domain types.
  */
 
-import { Agent } from 'undici';
-import { AH_GQL_URL, AH_ORIGIN, DEFAULT_TIMEOUT_MS, DEFAULT_USER_AGENT, getAhClientVersion } from '../utils/constants.ts';
-import { AhNetworkError, AhSourceChangedError } from '../utils/errors.ts';
+import {
+  AH_GQL_URL,
+  AH_MOBILE_CLIENT_ID,
+  AH_MOBILE_GQL_URL,
+  AH_MOBILE_USER_AGENT,
+  AH_ORIGIN,
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_USER_AGENT,
+  getAhClientVersion,
+  getAhMobileClientVersion,
+} from '../utils/constants.ts';
+import { getAccessToken } from '../auth/token.ts';
+import { assertNoGqlErrors, gqlPost } from './transport.ts';
+import { AhAuthError, AhNetworkError, AhSourceChangedError } from '../utils/errors.ts';
 import type {
   BonusCategoriesResponse,
   BonusCategory,
@@ -72,90 +83,76 @@ const buildGqlHeaders = (referer = `${AH_ORIGIN}/bonus`) => ({
   'sec-fetch-site': 'same-origin',
 });
 
-const MAX_RETRIES = 3;
-const BASE_BACKOFF_MS = 500;
-const MAX_BACKOFF_MS = 30_000;
-
-// Akamai's edge rejects Node's default OpenSSL cipher list as non-browser. A
-// Chrome-like cipher list yields a TLS Client Hello (JA3/JA4) the bot wall
-// accepts. Without this, requests from Linux Node return HTTP 403 before any
-// HTTP-layer inspection. Confirmed via tls.peet.ws fingerprint capture.
-const CHROME_CIPHERS = [
-  'TLS_AES_128_GCM_SHA256',
-  'TLS_AES_256_GCM_SHA384',
-  'TLS_CHACHA20_POLY1305_SHA256',
-  'ECDHE-ECDSA-AES128-GCM-SHA256',
-  'ECDHE-RSA-AES128-GCM-SHA256',
-  'ECDHE-ECDSA-AES256-GCM-SHA384',
-  'ECDHE-RSA-AES256-GCM-SHA384',
-  'ECDHE-ECDSA-CHACHA20-POLY1305',
-  'ECDHE-RSA-CHACHA20-POLY1305',
-  'ECDHE-RSA-AES128-SHA',
-  'ECDHE-RSA-AES256-SHA',
-  'AES128-GCM-SHA256',
-  'AES256-GCM-SHA384',
-  'AES128-SHA',
-  'AES256-SHA',
-].join(':');
-
-const tlsAgent = new Agent({ connect: { ciphers: CHROME_CIPHERS } });
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const isRetryableStatus = (status: number) => status === 429 || status >= 500;
-
-/** Honor Retry-After (seconds or HTTP-date), clamped to MAX_BACKOFF_MS. */
-const retryAfterMs = (header: string | null): number | undefined => {
-  if (!header) return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(seconds * 1000, MAX_BACKOFF_MS);
-  }
-  const dateMs = Date.parse(header);
-  if (Number.isFinite(dateMs)) {
-    return Math.max(0, Math.min(dateMs - Date.now(), MAX_BACKOFF_MS));
-  }
-  return undefined;
+// A 400/403 on the public endpoint usually means AH rotated their web client
+// version; point the user at the override knob.
+const publicGqlError = (status: number): AhNetworkError => {
+  const hint =
+    status === 400 || status === 403
+      ? ` — AH may have rotated their client (x-client-version); try setting BONBONUS_CLIENT_VERSION (current: ${getAhClientVersion()})`
+      : '';
+  return new AhNetworkError(`GQL request failed: ${status}${hint}`);
 };
 
-const gqlFetch = async <T>(body: string, headers: Record<string, string>, timeoutMs: number): Promise<T> => {
-  let lastError: unknown;
+const gqlFetch = <T>(body: string, headers: Record<string, string>, timeoutMs: number): Promise<T> =>
+  gqlPost<T>(async () => ({ url: AH_GQL_URL, headers, body }), {
+    timeoutMs,
+    label: 'GQL request',
+    toError: publicGqlError,
+  });
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const response = await fetch(AH_GQL_URL, {
-        method: 'POST',
-        headers,
-        body,
-        signal: AbortSignal.timeout(timeoutMs),
-        // @ts-expect-error -- Node's global fetch accepts an undici dispatcher
-        dispatcher: tlsAgent,
-      });
+// --- Authenticated (member) transport ----------------------------------------
+// The personal Bonus Box lives on the iOS app's GraphQL surface (api.ah.nl),
+// reached with an OAuth bearer token and the appie-ios headers — a different
+// host + header set than the anonymous www.ah.nl/gql transport above.
 
-      if (!response.ok) {
-        if (isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
-          const wait = retryAfterMs(response.headers.get('retry-after')) ?? BASE_BACKOFF_MS * 2 ** attempt;
-          await sleep(wait);
-          continue;
-        }
-        const hint =
-          response.status === 400 || response.status === 403
-            ? ` — AH may have rotated their client (x-client-version); try setting BONBONUS_CLIENT_VERSION (current: ${getAhClientVersion()})`
-            : '';
-        throw new AhNetworkError(`GQL request failed: ${response.status}${hint}`);
-      }
+const buildAuthGqlHeaders = (accessToken: string, operationName: string): Record<string, string> => ({
+  'content-type': 'application/json',
+  accept: 'application/json',
+  authorization: `Bearer ${accessToken}`,
+  'x-client-name': AH_MOBILE_CLIENT_ID,
+  'x-client-version': getAhMobileClientVersion(),
+  'x-application': 'AHWEBSHOP',
+  'x-apollo-operation-name': operationName,
+  'apollographql-client-name': 'nl.ah.Appie-apollo-ios',
+  'user-agent': AH_MOBILE_USER_AGENT,
+});
 
-      return (await response.json()) as T;
-    } catch (error) {
-      lastError = error;
-      if (error instanceof AhNetworkError) throw error;
-      if (attempt >= MAX_RETRIES) break;
-      await sleep(BASE_BACKOFF_MS * 2 ** attempt);
-    }
-  }
+/**
+ * Send an authenticated GraphQL request to the member API. Fetches a valid
+ * access token (refreshing proactively), and on a 401 forces one refresh and
+ * retries once — covering tokens AH invalidated server-side before expiry.
+ * A 401 that survives the forced refresh surfaces as an auth error (re-login),
+ * not a generic network error. Transient 429/5xx back off via the shared core.
+ */
+export const authGqlFetch = <T>(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<T> => {
+  const body = JSON.stringify({ operationName, query, variables });
+  let forceRefresh = false;
+  const label = `Authenticated GQL (${operationName})`;
 
-  const message = lastError instanceof Error ? lastError.message : String(lastError);
-  throw new AhNetworkError(`GQL request failed after ${MAX_RETRIES + 1} attempts: ${message}`);
+  return gqlPost<T>(
+    async () => {
+      const accessToken = await getAccessToken({ force: forceRefresh });
+      return { url: AH_MOBILE_GQL_URL, headers: buildAuthGqlHeaders(accessToken, operationName), body };
+    },
+    {
+      timeoutMs,
+      label,
+      on401: async () => {
+        forceRefresh = true; // next build() mints a fresh token
+        return true;
+      },
+      // A 401 after the forced refresh means the session is truly dead.
+      toError: (status) =>
+        status === 401
+          ? new AhAuthError('Your AH session is no longer valid. Run `bonbonus auth login` to sign in again.', 'REFRESH_FAILED')
+          : new AhNetworkError(`${label} failed: ${status}`),
+    },
+  );
 };
 
 export const fetchBonusCategories = async (
@@ -254,10 +251,7 @@ interface GqlEnvelope {
  *  3. Happy path — return data[field].
  */
 const extractGqlField = <T>(response: GqlEnvelope, field: string, context: string): T => {
-  if (response.errors && response.errors.length > 0) {
-    const messages = response.errors.map((e) => e.message ?? 'unknown error').join('; ');
-    throw new AhNetworkError(`${context}: AH returned errors: ${messages}`);
-  }
+  assertNoGqlErrors(response.errors, context);
   if (!response.data || typeof response.data !== 'object') {
     throw new AhNetworkError(`${context}: AH returned no data`);
   }

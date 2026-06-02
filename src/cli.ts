@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   extractBonusItems,
@@ -11,6 +9,9 @@ import {
   searchRecipes,
   toCsv,
 } from './index.ts';
+import { fail, writeOutput } from './cli/shared.ts';
+import { runBonusBox } from './bonusbox/cli.ts';
+import { runAuth } from './auth/cli.ts';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
@@ -22,6 +23,8 @@ Commands:
   search <term>              Search AH products by free text.
   product <id> [<id>...]     Look up one or more products by numeric AH id.
   recipes <term>             Search Allerhande recipes by free text.
+  bonusbox [list|activate]   Read or activate your personal Bonus Box (needs login).
+  auth <subcommand>          Manage AH login (login | status | logout).
 
 Global options:
   -h, --help                 Show this help.
@@ -30,8 +33,10 @@ Global options:
 Run 'bonbonus <command> --help' for command-specific options.
 
 Environment:
-  BONBONUS_CONCURRENCY       Positive integer; parallel promotion fetches for 'extract'.
-  BONBONUS_CLIENT_VERSION    Override the AH x-client-version header (default: 1.32.4).`;
+  BONBONUS_CONCURRENCY          Positive integer; parallel promotion fetches for 'extract'.
+  BONBONUS_CLIENT_VERSION       Override the web AH x-client-version header (default: 1.32.4).
+  BONBONUS_MOBILE_CLIENT_VERSION Override the mobile/member x-client-version (default: 9.28).
+  BONBONUS_AUTH_FILE            Override the stored credentials path (default: XDG config dir).`;
 
 const EXTRACT_USAGE = `Usage: bonbonus extract [--format json|csv] [--pretty] [--output <path>]
 
@@ -70,12 +75,6 @@ Options:
   --pretty                   Pretty-print JSON output.
   --output <path>            Write to file instead of stdout.`;
 
-const fail = (message: string, commandUsage = USAGE): never => {
-  console.error(message);
-  console.error(commandUsage);
-  process.exit(1);
-};
-
 const parseConcurrency = (raw: string | undefined): number | undefined => {
   if (!raw) return undefined;
   const parsed = Number(raw);
@@ -84,16 +83,6 @@ const parseConcurrency = (raw: string | undefined): number | undefined => {
     process.exit(1);
   }
   return parsed;
-};
-
-const writeOutput = async (body: string, outputPath: string | undefined) => {
-  if (outputPath) {
-    const absolutePath = resolve(process.cwd(), outputPath);
-    await mkdir(dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, body + '\n', 'utf8');
-  } else {
-    process.stdout.write(body + '\n');
-  }
 };
 
 const parsePositiveInteger = (raw: string, flag: string, usage: string): number => {
@@ -316,8 +305,12 @@ const main = async () => {
       return runProduct(rest);
     case 'recipes':
       return runRecipes(rest);
+    case 'bonusbox':
+      return runBonusBox(rest);
+    case 'auth':
+      return runAuth(rest);
     default:
-      return fail(`Unknown command: ${first}`);
+      return fail(`Unknown command: ${first}`, USAGE);
   }
 };
 

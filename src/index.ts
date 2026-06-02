@@ -5,14 +5,19 @@ import {
   fetchPromotionProducts,
   fetchRecipeSearch,
 } from './fetch/gql.ts';
+import { activateBonusBoxOffer, fetchBonusBox, fetchMember } from './fetch/bonusbox.ts';
 import { getCurrentBonusWeek } from './utils/week.ts';
 import { DEFAULT_CONCURRENCY, DEFAULT_WEEK } from './utils/constants.ts';
 import { createLogger } from './utils/log.ts';
 import type {
+  BonusBoxActivation,
+  BonusBoxActivationResult,
+  BonusBoxResult,
   BonusCategoryPromotion,
   BonusItem,
   ExtractOptions,
   ExtractResult,
+  MemberInfo,
   ProductLookupResult,
   ProductSearchOptions,
   ProductSearchResultPublic,
@@ -192,11 +197,77 @@ export const searchRecipes = async (options: RecipeSearchOptions): Promise<Recip
   };
 };
 
+// --- Personal Bonus Box (authenticated) --------------------------------------
+
+/** Read the signed-in member's personal Bonus Box for the current week. */
+export const getBonusBox = async (): Promise<BonusBoxResult> => {
+  const { weekNumber, periodStart, periodEnd } = getCurrentBonusWeek();
+  log('Bonus Box week', weekNumber, periodStart, '→', periodEnd);
+  const box = await fetchBonusBox({ weekNumber, periodStart, periodEnd });
+  return { ...box, weekNumber, scrapedAt: new Date().toISOString() };
+};
+
+export interface ActivateBonusBoxOptions {
+  /** Promotion ids (the `id` field from getBonusBox) to activate. */
+  ids?: string[];
+  /** Activate every currently-ACTIVATABLE item instead of specific ids. */
+  all?: boolean;
+}
+
+/**
+ * Activate Bonus Box picks. Resolves ids against a fresh box read (to map each
+ * to its activation `hqId` and skip already-activated / unknown ids), then
+ * activates them one at a time. Activation is one-way — there is no undo.
+ */
+export const activateBonusBox = async (options: ActivateBonusBoxOptions): Promise<BonusBoxActivationResult> => {
+  const { weekNumber, periodStart, periodEnd } = getCurrentBonusWeek();
+  const box = await fetchBonusBox({ weekNumber, periodStart, periodEnd });
+  const startDate = box.validityPeriod?.start ?? periodStart;
+
+  let targets;
+  if (options.all) {
+    targets = box.items.filter((i) => i.activationStatus === 'ACTIVATABLE');
+  } else {
+    const ids = options.ids ?? [];
+    if (ids.length === 0) throw new TypeError('activateBonusBox: provide ids or set all: true');
+    const byId = new Map(box.items.map((i) => [i.id, i]));
+    targets = [];
+    for (const id of ids) {
+      const item = byId.get(id);
+      if (!item) {
+        log('Skipping unknown Bonus Box id', id);
+        continue;
+      }
+      if (item.activationStatus === 'ACTIVATED') {
+        log('Already activated, skipping', id, item.title);
+        continue;
+      }
+      targets.push(item);
+    }
+  }
+
+  const results: BonusBoxActivation[] = [];
+  for (const item of targets) {
+    log('Activating', item.id, item.title);
+    results.push(await activateBonusBoxOffer(item, startDate));
+  }
+
+  return { results, scrapedAt: new Date().toISOString() };
+};
+
+/** Fetch the signed-in member's profile (verifies auth works). */
+export const getMember = async (): Promise<MemberInfo> => fetchMember();
+
 export { toCsv, productSummariesToCsv } from './format/csv.ts';
 export type {
+  BonusBoxActivation,
+  BonusBoxActivationResult,
+  BonusBoxItem,
+  BonusBoxResult,
   BonusItem,
   ExtractOptions,
   ExtractResult,
+  MemberInfo,
   ProductLookupResult,
   ProductSearchOptions,
   ProductSearchResultPublic,
@@ -205,4 +276,4 @@ export type {
   RecipeSearchResultPublic,
 } from './utils/types.ts';
 export type { RecipeSummary } from './utils/types.ts';
-export { AhScrapeError, AhNetworkError, AhSourceChangedError } from './utils/errors.ts';
+export { AhScrapeError, AhNetworkError, AhSourceChangedError, AhAuthError } from './utils/errors.ts';
